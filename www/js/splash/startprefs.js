@@ -1,13 +1,15 @@
+import angular from 'angular';
+
 angular.module('emission.splash.startprefs', ['emission.plugin.logger',
                                               'emission.splash.referral',
-                                              'emission.plugin.kvstore'])
+                                              'emission.plugin.kvstore',
+                                              'emission.config.dynamic'])
 
 .factory('StartPrefs', function($window, $state, $interval, $rootScope, $ionicPlatform,
-      $ionicPopup, KVStore, storage, $http, Logger, ReferralHandler) {
+      $ionicPopup, KVStore, $http, Logger, ReferralHandler, DynamicConfig) {
     var logger = Logger;
     var nTimesCalled = 0;
     var startprefs = {};
-    var DEFAULT_THEME_KEY = 'curr_theme';
      // Boolean: represents that the "intro" - the one page summary
      // and the login are done
     var INTRO_DONE_KEY = 'intro_done';
@@ -19,14 +21,6 @@ angular.module('emission.splash.startprefs', ['emission.plugin.logger',
 
     startprefs.CONSENTED_EVENT = "data_collection_consented";
     startprefs.INTRO_DONE_EVENT = "intro_done";
-
-    startprefs.setDefaultTheme = function(new_theme) {
-      storage.set(DEFAULT_THEME_KEY, new_theme);
-    }
-
-    startprefs.getDefaultTheme = function() {
-      return storage.get(DEFAULT_THEME_KEY);
-    }
 
     var writeConsentToNative = function() {
       return $window.cordova.plugins.BEMDataCollection.markConsented($rootScope.req_consent);
@@ -100,6 +94,24 @@ angular.module('emission.splash.startprefs', ['emission.plugin.logger',
           });
     }
 
+    startprefs.readConfig = function() {
+        return DynamicConfig.loadSavedConfig().then((savedConfig) => $rootScope.app_ui_label = savedConfig);
+    }
+
+    startprefs.hasConfig = function() {
+      if ($rootScope.app_ui_label == undefined ||
+          $rootScope.app_ui_label == null ||
+          $rootScope.app_ui_label == "") {
+        logger.log("Config not downloaded, need to show join screen");
+        $rootScope.has_config = false;
+        return false;
+      } else {
+        $rootScope.has_config = true;
+        logger.log("Config downloaded, skipping join screen");
+        return true;
+      }
+    }
+
     /*
      * getNextState() returns a promise, since reading the startupConfig is
      * async. The promise returns an onboarding state to navigate to, or
@@ -107,9 +119,12 @@ angular.module('emission.splash.startprefs', ['emission.plugin.logger',
      */
 
     startprefs.getPendingOnboardingState = function() {
-      return startprefs.readStartupState().then(function([is_intro_done, is_consented]) {
-        if (!is_intro_done) {
-            console.assert(!$rootScope.intro_done, "in getPendingOnboardingState first check, $rootScope.intro_done", JSON.stringify($rootScope.intro_done));
+      return startprefs.readStartupState().then(function([is_intro_done, is_consented, has_config]) {
+        if (!has_config) {
+            console.assert(!$rootScope.has_config, "in getPendingOnboardingState first check, $rootScope.has_config", JSON.stringify($rootScope.has_config));
+            return 'root.join';
+        } else if (!is_intro_done) {
+            console.assert(!$rootScope.intro_done, "in getPendingOnboardingState second check, $rootScope.intro_done", JSON.stringify($rootScope.intro_done));
             return 'root.intro';
         } else {
         // intro is done. Now let's check consent
@@ -129,11 +144,14 @@ angular.module('emission.splash.startprefs', ['emission.plugin.logger',
      * we can use them without making multiple native calls
      */
     startprefs.readStartupState = function() {
+        console.log("STARTPREFS: about to read startup state");
         var readIntroPromise = startprefs.readIntroDone()
                                     .then(startprefs.isIntroDone);
         var readConsentPromise = startprefs.readConsentState()
                                     .then(startprefs.isConsented);
-        return Promise.all([readIntroPromise, readConsentPromise]);
+        var readConfigPromise = startprefs.readConfig()
+                                    .then(startprefs.hasConfig);
+        return Promise.all([readIntroPromise, readConsentPromise, readConfigPromise]);
     };
 
     startprefs.getConsentDocument = function() {
@@ -164,13 +182,7 @@ angular.module('emission.splash.startprefs', ['emission.plugin.logger',
     startprefs.getNextState = function() {
       return startprefs.getPendingOnboardingState().then(function(result){
         if (result == null) {
-          var temp = ReferralHandler.getReferralNavigation();
-          if (temp == 'goals') {
-            return {state: 'root.main.goals', params: {}};
-          } else if ($rootScope.displayingIncident) {
-            logger.log("Showing tripconfirm from startprefs");
-            return {state: 'root.main.diary'};
-          } else if (angular.isDefined($rootScope.redirectTo)) {
+          if (angular.isDefined($rootScope.redirectTo)) {
             var redirState = $rootScope.redirectTo;
             var redirParams = $rootScope.redirectParams;
             $rootScope.redirectTo = undefined;
@@ -182,6 +194,10 @@ angular.module('emission.splash.startprefs', ['emission.plugin.logger',
         } else {
           return {state: result, params: {}};
         }
+      })
+      .catch((err) => {
+        Logger.displayError("error getting next state", err);
+        return "root.intro";
       });
     };
 

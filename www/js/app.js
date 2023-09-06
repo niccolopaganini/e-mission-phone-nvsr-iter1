@@ -1,21 +1,40 @@
 // Ionic E-Mission App
 
-// angular.module is a global place for creating, registering and retrieving Angular modules
-// 'emission' is the name of this angular module example (also set in a <body> attribute in index.html)
-// the 2nd parameter is an array of 'requires'
-// 'emission.services' is found in services.js
-// 'emission.controllers' is found in controllers.js
 'use strict';
 
-angular.module('emission', ['ionic',
+import angular from 'angular';
+import 'angular-animate';
+import 'angular-sanitize';
+import 'angular-translate';
+import '../manual_lib/angular-ui-router/angular-ui-router.js';
+import 'angular-local-storage';
+import 'angular-translate-loader-static-files';
+
+import 'moment';
+import 'moment-timezone';
+import 'chartjs-adapter-luxon';
+
+import 'ionic-toast';
+import 'ionic-datepicker';
+import 'angular-simple-logger';
+
+import '../manual_lib/ionic/js/ionic.js';
+import '../manual_lib/ionic/js/ionic-angular.js';
+
+import initializedI18next from './i18nextInit';
+window.i18next = initializedI18next;
+import 'ng-i18next';
+
+angular.module('emission', ['ionic', 'jm.i18next',
     'emission.controllers','emission.services', 'emission.plugin.logger',
     'emission.splash.customURLScheme', 'emission.splash.referral',
     'emission.services.email',
-  'emission.intro', 'emission.main',
-  'pascalprecht.translate'])
+    'emission.intro', 'emission.main', 'emission.config.dynamic',
+    'emission.config.server_conn', 'emission.join.ctrl',
+    'pascalprecht.translate', 'LocalStorageModule'])
 
 .run(function($ionicPlatform, $rootScope, $http, Logger,
-    CustomURLScheme, ReferralHandler) {
+    CustomURLScheme, ReferralHandler, DynamicConfig, localStorageService, ServerConnConfig) {
   console.log("Starting run");
   // ensure that plugin events are delivered after the ionicPlatform is ready
   // https://github.com/katzer/cordova-plugin-local-notifications#launch-details
@@ -32,6 +51,8 @@ angular.module('emission', ['ionic',
     if (urlComponents.route == 'join') {
       ReferralHandler.setupGroupReferral(urlComponents);
       StartPrefs.loadWithPrefs();
+    } else if (urlComponents.route == 'login_token') {
+      DynamicConfig.initByUser(urlComponents);
     }
   });
   // END: Global listeners
@@ -44,36 +65,17 @@ angular.module('emission', ['ionic',
       // org.apache.cordova.statusbar required
       StatusBar.styleDefault();
     }
-
-    // Configure the connection settings
-    Logger.log("about to get connection config");
-    $http.get("json/connectionConfig.json").then(function(connectionConfig) {
-        if(connectionConfig.data.length == 0) {
-            throw "blank string instead of missing file on dynamically served app";
-        }
-        Logger.log("connectionConfigString = "+JSON.stringify(connectionConfig.data));
-        $rootScope.connectUrl = connectionConfig.data.connectUrl;
-        $rootScope.aggregateAuth = connectionConfig.data.aggregate_call_auth;
-        window.cordova.plugins.BEMConnectionSettings.setSettings(connectionConfig.data);
-    }).catch(function(err) {
-        // not displaying the error here since we have a backup
-        Logger.log("error "+JSON.stringify(err)+" while reading connection config, reverting to defaults");
-        window.cordova.plugins.BEMConnectionSettings.getDefaultSettings().then(function(defaultConfig) {
-            Logger.log("defaultConfig = "+JSON.stringify(defaultConfig));
-            $rootScope.connectUrl = defaultConfig.connectUrl;
-            $rootScope.aggregateAuth = "no_auth";
-            window.cordova.plugins.BEMConnectionSettings.setSettings(defaultConfig);
-        }).catch(function(err) {
-            // displaying the error here since we don't have a backup
-            Logger.displayError("Error reading or setting connection defaults", err);
-        });
-    });
     cordova.plugin.http.setDataSerializer('json');
+    // backwards compat hack to be consistent with
+    // https://github.com/e-mission/e-mission-data-collection/commit/92f41145e58c49e3145a9222a78d1ccacd16d2a7#diff-962320754eba07107ecd413954411f725c98fd31cddbb5defd4a542d1607e5a3R160
+    // remove during migration to react native
+    localStorageService.remove("OP_GEOFENCE_CFG");
+    cordova.plugins.BEMUserCache.removeLocalStorage("OP_GEOFENCE_CFG");
   });
   console.log("Ending run");
 })
 
-.config(function($stateProvider, $urlRouterProvider, $translateProvider, $compileProvider) {
+.config(function($stateProvider, $urlRouterProvider, $compileProvider) {
   console.log("Starting config");
   // alert("config");
 
@@ -93,6 +95,17 @@ angular.module('emission', ['ionic',
         controller: 'SplashCtrl'
   })
 
+  // add the join screen to the list of initially defined states
+  // we can't put it in intro since it comes before it
+  // we can't put it in main because it is also a temporary screen that only
+  // shows up when we have no config.
+  // so we put it in here
+  .state('root.join', {
+    url: '/join',
+    templateUrl: 'templates/join/request_join.html',
+    controller: 'JoinCtrl'
+  })
+
   // setup an abstract state for the root. Only children of this can be loaded
   // as preferred screens, and all children of this can assume that the device
   // is ready.
@@ -106,27 +119,6 @@ angular.module('emission', ['ionic',
   // alert("about to fall back to otherwise");
   // if none of the above states are matched, use this as the fallback
   $urlRouterProvider.otherwise('/splash');
-
-  // Allow the use of MessageForm interpolation for Gender and Plural.
-  $translateProvider.addInterpolation('$translateMessageFormatInterpolation')
-                    .useSanitizeValueStrategy('escape');
-
-
-  // Define where we can find the .json and the fallback language
-  $translateProvider
-    .fallbackLanguage('en')
-    .registerAvailableLanguageKeys(['en', 'fr', 'it', 'es'], {
-      'en_*': 'en',
-      'fr_*': 'fr',
-      'it_*': 'it',
-      'es_*': 'es',
-      '*': 'en'
-    })
-    .determinePreferredLanguage()
-    .useStaticFilesLoader({
-      prefix: 'i18n/',
-      suffix: '.json'
-    });
   
   console.log("Ending config");
 });

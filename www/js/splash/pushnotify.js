@@ -13,6 +13,8 @@
  * notification handling gets more complex, we should consider decoupling it as well.
  */
 
+import angular from 'angular';
+
 angular.module('emission.splash.pushnotify', ['emission.plugin.logger',
                                               'emission.services',
                                               'emission.splash.startprefs'])
@@ -45,8 +47,10 @@ angular.module('emission.splash.pushnotify', ['emission.plugin.logger',
                if(angular.isDefined(data.additionalData.payload)) {
                   data.additionalData.payload = JSON.parse(data.additionalData.payload);
                }
-               if(angular.isDefined(data.additionalData.data)) {
+               if(angular.isDefined(data.additionalData.data) && typeof(data.additionalData.data) == "string") {
                   data.additionalData.data = JSON.parse(data.additionalData.data);
+               } else {
+                  console.log("additionalData is already an object, no need to parse it");
                }
             } else {
                 Logger.log("No additional data defined, nothing to parse");

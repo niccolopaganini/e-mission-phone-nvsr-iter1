@@ -1,5 +1,7 @@
 'use strict';
 
+import angular from 'angular';
+
 angular.module('emission.services', ['emission.plugin.logger',
                                      'emission.plugin.kvstore'])
 
@@ -11,6 +13,14 @@ angular.module('emission.services', ['emission.plugin.logger',
             }, errorCallback);
     };
 
+    var processErrorMessages = function(errorMsg) {
+      if (errorMsg.includes("403")) {
+        errorMsg = "Error: OPcode does not exist on the server. " + errorMsg;
+        console.error("Error 403 found. " + errorMsg);
+      }
+      return errorMsg;
+    }
+
     this.registerUser = function(successCallback, errorCallback) {
             window.cordova.plugins.BEMServerComm.getUserPersonalData("/profile/create", successCallback, errorCallback);
     };
@@ -18,12 +28,22 @@ angular.module('emission.services', ['emission.plugin.logger',
     this.updateUser = function(updateDoc) {
         return new Promise(function(resolve, reject) {
             window.cordova.plugins.BEMServerComm.postUserPersonalData("/profile/update", "update_doc", updateDoc, resolve, reject);
+        })
+        .catch(error => {
+            error = "While updating user, " + error;
+            error = processErrorMessages(error);
+            throw(error);
         });
     };
 
     this.getUser = function() {
         return new Promise(function(resolve, reject) {
             window.cordova.plugins.BEMServerComm.getUserPersonalData("/profile/get", resolve, reject);
+        })
+        .catch(error => {
+            error = "While getting user, " + error;
+            error = processErrorMessages(error);
+            throw(error);
         });
     };
 
@@ -43,6 +63,11 @@ angular.module('emission.services', ['emission.plugin.logger',
         }
         return new Promise(function(resolve, reject) {
             window.cordova.plugins.BEMServerComm.postUserPersonalData("/usercache/putone", "the_entry", entryToPut, resolve, reject);
+        })
+        .catch(error => {
+            error = "While putting one entry, " + error;
+            error = processErrorMessages(error);
+            throw(error);
         });
     };
 
@@ -50,6 +75,11 @@ angular.module('emission.services', ['emission.plugin.logger',
         return new Promise(function(resolve, reject) {
           var dateString = date.startOf('day').format('YYYY-MM-DD');
           window.cordova.plugins.BEMServerComm.getUserPersonalData("/timeline/getTrips/"+dateString, resolve, reject);
+        })
+        .catch(error => {
+          error = "While getting timeline for day, " + error;
+          error = processErrorMessages(error);
+          throw(error);
         });
     };
 
@@ -83,6 +113,11 @@ angular.module('emission.services', ['emission.plugin.logger',
     this.habiticaProxy = function(callOpts){
       return new Promise(function(resolve, reject){
         window.cordova.plugins.BEMServerComm.postUserPersonalData("/habiticaProxy", "callOpts", callOpts, resolve, reject);
+      })
+      .catch(error => {
+        error = "While habitica proxy, " + error;
+        error = processErrorMessages(error);
+        throw(error);
       });
     };
 
@@ -95,19 +130,11 @@ angular.module('emission.services', ['emission.plugin.logger',
         };
         window.cordova.plugins.BEMServerComm.pushGetJSON("/result/metrics/"+timeType, msgFiller, resolve, reject);
       })
-    };
-
-    this.getIncidents = function(start_ts, end_ts) {
-      return new Promise(function(resolve, reject) {
-        var msgFiller = function(message) {
-           message.start_time = start_ts;
-           message.end_time = end_ts;
-           message.sel_region = null;
-           console.log("About to return message "+JSON.stringify(message));
-        };
-        console.log("About to call pushGetJSON for the timestamp");
-        window.cordova.plugins.BEMServerComm.pushGetJSON("/result/heatmap/incidents/timestamp", msgFiller, resolve, reject);
-      })
+      .catch(error => {
+        error = "While getting metrics, " + error;
+        error = processErrorMessages(error);
+        throw(error);
+      });
     };
 
     /*
@@ -144,6 +171,11 @@ angular.module('emission.services', ['emission.plugin.logger',
           };
           console.log("getRawEntries: about to get pushGetJSON for the timestamp");
           window.cordova.plugins.BEMServerComm.pushGetJSON("/datastreams/find_entries/local_date", msgFiller, resolve, reject);
+      })
+      .catch(error => {
+          error = "While getting raw entries for local date, " + error;
+          error = processErrorMessages(error);
+          throw(error);
       });
     };
 
@@ -163,6 +195,11 @@ angular.module('emission.services', ['emission.plugin.logger',
           };
           console.log("getRawEntries: about to get pushGetJSON for the timestamp");
           window.cordova.plugins.BEMServerComm.pushGetJSON("/datastreams/find_entries/timestamp", msgFiller, resolve, reject);
+      })
+      .catch(error => {
+          error = "While getting raw entries, " + error;
+          error = processErrorMessages(error);
+          throw(error);
       });
     };
 
@@ -170,6 +207,11 @@ angular.module('emission.services', ['emission.plugin.logger',
       return new Promise(function(resolve, reject) {
           console.log("getting pipeline complete timestamp");
           window.cordova.plugins.BEMServerComm.getUserPersonalData("/pipeline/get_complete_ts", resolve, reject);
+      })
+      .catch(error => {
+          error = "While getting pipeline complete timestamp, " + error;
+          error = processErrorMessages(error);
+          throw(error);
       });
     };
 
@@ -177,6 +219,11 @@ angular.module('emission.services', ['emission.plugin.logger',
       return new Promise(function(resolve, reject) {
           console.log("getting pipeline range timestamps");
           window.cordova.plugins.BEMServerComm.getUserPersonalData("/pipeline/get_range_ts", resolve, reject);
+      })
+      .catch(error => {
+          error = "While getting pipeline range timestamps, " + error;
+          error = processErrorMessages(error);
+          throw(error);
       });
     };
 
@@ -209,6 +256,11 @@ angular.module('emission.services', ['emission.plugin.logger',
               };
               window.cordova.plugins.BEMServerComm.pushGetJSON("/"+path, msgFiller, resolve, reject);
           }
+        })
+        .catch(error => {
+          error = "While getting aggregate data, " + error;
+          error = processErrorMessages(error);
+          throw(error);
         });
     };
 })
@@ -312,7 +364,6 @@ angular.module('emission.services', ['emission.plugin.logger',
 })
 .service('ControlHelper', function($window,
                                    $ionicPopup,
-                                   $translate,
                                    CommHelper,
                                    Logger) {
 
@@ -384,14 +435,14 @@ angular.module('emission.services', ['emission.plugin.logger',
                         attachFile = "app://cache/"+dumpFile;
                       }
                       if (ionic.Platform.isIOS()) {
-                        alert($translate.instant('email-service.email-account-mail-app'));
+                        alert(i18next.t('email-service.email-account-mail-app'));
                       }
                       var email = {
                         attachments: [
                           attachFile
                         ],
-                        subject: $translate.instant('email-service.email-data.subject-data-dump-from-to', {start: startMoment.format(fmt),end: endMoment.format(fmt)}),
-                        body: $translate.instant('email-service.email-data.body-data-consists-of-list-of-entries')
+                        subject: i18next.t('email-service.email-data.subject-data-dump-from-to', {start: startMoment.format(fmt),end: endMoment.format(fmt)}),
+                        body: i18next.t('email-service.email-data.body-data-consists-of-list-of-entries')
                       }
                       $window.cordova.plugins.email.open(email).then(resolve());
                     }
@@ -425,27 +476,6 @@ angular.module('emission.services', ['emission.plugin.logger',
       return window.cordova.plugins.BEMConnectionSettings.getSettings();
     };
 
-})
-
-// common configuration methods across all screens
-// e.g. maps
-// for consistent L&F
-
-.factory('Config', function() {
-    var config = {};
-
-    config.getMapTiles = function() {
-      return {
-          tileLayer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          tileLayerOptions: {
-              attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
-              opacity: 0.9,
-              detectRetina: true,
-              reuseTiles: true,
-          }
-      };
-    };
-    return config;
 })
 
 .factory('Chats', function() {

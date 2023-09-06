@@ -10,8 +10,8 @@
 }
 
 .main {
-    padding-top:50px;
-    padding-bottom:50px !important;
+  padding-top:50px;
+  min-height: 100%;
 }
 
 .row {
@@ -47,7 +47,7 @@
   and (min-device-width: 320px) 
   and (max-device-width: 568px)
   and (-webkit-min-device-pixel-ratio: 2) {
-    .angular-leaflet-map { height: 150px; width: 245px; }
+    .angular-leaflet-map { width: 100%; }
 }
 
 /* ----------- iPhone 6 ----------- */
@@ -57,7 +57,7 @@
   and (min-device-width: 375px) 
   and (max-device-width: 667px) 
   and (-webkit-min-device-pixel-ratio: 2) { 
-    .angular-leaflet-map { height: 150px; width: 295px; }
+    .angular-leaflet-map { width: 100%; }
 }
 
 /* ----------- iPhone 6+ ----------- */
@@ -67,7 +67,7 @@
   and (min-device-width: 414px) 
   and (max-device-width: 736px) 
   and (-webkit-min-device-pixel-ratio: 3) { 
-    .angular-leaflet-map { height: 150px; width: 330px; }
+    .angular-leaflet-map { width: 100%; }
 }
 
 
@@ -86,38 +86,6 @@ a.item-content {
   padding: 0 !important;
   background-color: transparent !important;
 }
-.leaflet-div-icon {
-  background-color: white;
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
-  margin-left: 3px;
-  margin-top: 3px;
-  border-color: white;  
-}
-.leaflet-div-icon-start {
-  background-color: #80D0FF;
-  border-radius: 100%;
-}
-.leaflet-div-icon-stop {
-  background-color: #0088ce;
-  border-radius: 100%;
-}
-.leaflet-div-ionicon {
-  background: transparent; 
-  color: white;
-  font-size: 100%;
-  justify-content: center; 
-  display: flex;
-}
-.leaflet-div-ionicon-start {
-  color: white;
-}
-.leaflet-div-ionicon-stop {
-  color: white;
-  margin-top: 1px;
-  margin-left: 3px;
-}
 .inner-icon {
   background-color: white;
   width: 6px;
@@ -130,56 +98,54 @@ a.item-content {
   min-height: 10px; /* Changed from 47px. This allows for the correct height for the label buttons to fit nicely in the diary card. */
   line-height: normal;
 }
-.btn-input-confirm-red,
-.btn-input-confirm-red:hover,
-.btn-input-confirm-red:active {
-  background-color: white;
-  color: #0088ce;
-  border-color: #0088ce;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-}
-.btn-input-confirm-yellow,
-.btn-input-confirm-yellow:hover,
-.btn-input-confirm-yellow:active {
-  background-color: #FFC108;  /* tentatively orange for now */
-  color: white;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-  border: 2px solid rgba(0, 136, 206, 0.2);
-}
-.btn-input-confirm-green,
-.btn-input-confirm-green:hover,
-.btn-input-confirm-green:active {
-  background-color: #0088ce;
-  color: white;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-  border: 2px solid rgba(0, 136, 206, 0.2);
-}
-/* White confirm buttons are currently unused */
-/* .btn-input-confirm-white,
-.btn-input-confirm-white:hover,
-.btn-input-confirm-white:active {
-  background-color: #ddd;
-  color: #333;
-  font-size: 0.8em;
-} */
 
-
-.btn-input-confirm {
+.diary-btn {
   width: 100%;
-  min-height: 30px;
-  max-height: 40px;
+  padding-inline: 14px;
+  min-height: 28px;
+  max-height: 32px;
   margin: 2px;
   box-sizing: border-box;
-  border-radius: 10px;
-  font-style: normal;
-  font-weight: normal;
-  font-size: 0.8em !important;
-
-  /* line-height: 30px;
-  min-height: 30px;
-  width: 115px;
-  padding: 0; */
+  border-radius: 50px;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .1), 0 2px 3px rgb(0 0 0 / .12);
+  background-color: white;
+  color: var(--accent-dark);
+  border: .12em solid var(--accent);
 }
+
+.diary-btn-yellow,
+.diary-btn-yellow:hover,
+.diary-btn-yellow:active {
+  background-color: #FFC108;  /* tentatively orange for now */
+  color: white;
+  border: 2px solid rgba(0, 136, 206, 0.2);
+}
+.diary-btn-blue,
+.diary-btn-blue:hover,
+.diary-btn-blue:active {
+  background-color: var(--accent);
+  color: white;
+  border: 2px solid rgba(0, 136, 206, 0.2);
+}
+
+/* icon */
+.diary-btn:before {
+  font-weight: bold;
+  scale: 1.7;
+  margin-right: .6em;
+  line-height: 100%;
+}
+
+.input-confirm-label {
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--accent);
+}
+
 .input-confirm-container {
   margin-top: 5px;
 }
@@ -187,6 +153,12 @@ a.item-content {
 .popover {
   height: 297px;
   width: 230px;
+}
+
+.popover .scroll-content {
+  height: auto;
+  margin: 0 !important;
+  border-radius: 0 0 10px 10px !important;
 }
 
 .big-popover {
@@ -200,29 +172,113 @@ a.item-content {
 }
 
 .unified-diary-item {
-  padding: 0;
-  margin: 0 1rem 0 1rem;
+  overflow: visible;
+  padding: 15px 6px;
+  margin: 0 10px;
   border-width: 0;
   background-color: transparent;
+  height: min-content;
   /* height: 250px; */
 }
 
 .diary-card {
+  background: white;
   width: 100%;
-  height: 330px;
+  height: min-content;
+  font-size: 13px;
+  line-height: 1.2;
   margin: 0;
-  border: 2px solid rgba(0, 136, 206, 0.2);
+  border: 1px solid rgb(0 0 0 / .2);
   box-sizing: border-box;
   border-radius: 30px;
+  position: relative;
+  box-shadow: 0 3px 4px rgb(0 0 0 / 5%), 0 4px 4px rgb(0 0 0 / 8%);
+  display: flex;
+  flex-wrap: wrap;
+  background: linear-gradient(40deg,
+                  hsla(200, 30%, 97%, 1) 40%,
+                  hsla(0, 0%, 100%, 1)),
+}
+
+.diary-card.place, .diary-card.untracked {
+  color: #222;
+  background: hsl(200 100% 85%);
+  border: 1px solid hsl(200 100% 10% / 0.2);
+  margin: 6px auto;
+  text-align: center;
+}
+
+.diary-card.untracked {
+    color: #333;
+    /* untracked time will have a reddish color */
+    --accent: hsl(350, 25%, 50%);
+    --accent-light: hsl(350, 65%, 85%);
+    --accent-dark: hsl(350, 65%, 30%);
+  
+    --grid: hsla(350, 25%, 80%, .2);
+    /* subtle x-grid lines in the background, fading to white */
+    background: linear-gradient(15deg,
+                  hsla(350, 10%, 92%, 1) 40%,
+                  hsla(350, 10%, 100%, 0.5)),
+                repeating-linear-gradient(45deg,
+                  var(--grid), var(--grid) 0px,
+                  transparent 2px, transparent 20px),
+                repeating-linear-gradient(-45deg,
+                  var(--grid), var(--grid) 0px,
+                  #fff 2px, #fff 21px);
+}
+
+.diary-card.untracked .card-title b {
+  font-size: 13px;
+  color: #222;
+  padding: 0 4px;
+  background-color: var(--accent-light);
+  border-radius: 5px;
+}
+
+.diary-card.draft, .diary-details.draft {
+  /* draft trips will have a muted, greenish color */
+  --accent: hsl(150, 15%, 40%);
+  --accent-light: hsl(150, 25%, 72%);
+  --accent-dark: hsl(150, 35%, 30%);
+
+  --grid: hsla(150, 25%, 70%, .3);
+  /* subtle grid lines in the background, fading to white */
+  background: linear-gradient(30deg,
+                hsla(150, 4%, 94%, .9) 50%,
+                hsla(0, 0%, 100%, .5)),
+              repeating-linear-gradient(90deg,
+                var(--grid), var(--grid) 0px,
+                transparent 2px, transparent 20px),
+              repeating-linear-gradient(0deg,
+                var(--grid), var(--grid) 0px,
+                #fff 2px, #fff 21px);
+}
+
+.card-title {
+  display: flex;
+  justify-content: center;
+  font-size: 15px;
+  padding-inline: 10px;
+}
+
+.card-title b {
+  margin-left: 10px;
+  text-overflow: ellipsis;
   overflow: hidden;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+}
+
+.card-date {
+  display: block;
+  white-space: break-spaces;
+  text-decoration: underline;
 }
 
 .diary-button {
   width: 100%;
   height: 30px;
   margin: 2px;
-  border: 2px solid #0088ce;
+  border: 2px solid var(--accent);
   box-sizing: border-box;
   border-radius: 50px;
   background-color: #ffffff;
@@ -255,7 +311,7 @@ a.item-content {
     position: absolute;
     top: 50%;
     left: 0;
-    background: #80D0FF;
+    background: var(--accent-light);
   }
 
   .hr-lines:after {
@@ -266,7 +322,7 @@ a.item-content {
     position: absolute;
     top: 50%;
     right: 0;
-    background: #80D0FF;
+    background: var(--accent-light);
   }
 }
 @media screen and (orientation: landscape) {
@@ -278,7 +334,7 @@ a.item-content {
     position: absolute;
     top: 50%;
     left: 0;
-    background: #80D0FF;
+    background: var(--accent-light);
   }
 
   .hr-lines:after {
@@ -289,31 +345,35 @@ a.item-content {
     position: absolute;
     top: 50%;
     right: 0;
-    background: #80D0FF;
+    background: var(--accent-light);
   }
-}
-
-.diary-draft-button {
-  font-style: normal;
-  font-weight: normal;
-  font-style: 13px;
-  background-color: #ffffff;
-  border: none;
-  background-image: url("../img/icons/help_outline_black_24dp.svg");
-  background-repeat: no-repeat;
-  background-position: left center;
-  padding-left: 25px;
 }
 
 .diary-route {
   margin: 5px 0;
+  height: 85px;
 }
 
 .diary-street {
   font-style: normal;
   font-weight: normal;
   font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.diary-street .icon {
+  color: var(--accent-light);
+}
+.diary-street + .diary-street .icon {
+  color: var(--accent);
+}
+.two-lines {
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
   white-space: normal;
+  overflow: hidden;
 }
 .btn-input-wrap {
   white-space: normal;
@@ -321,18 +381,30 @@ a.item-content {
   text-overflow: ellipsis;
 }
 
-.diary-map {
-  float: left;
-  width: 100%;
-  z-index: -1; /* Can't zoom in or out of the map with this implemented */
+.diary-map > div {
   overflow: hidden;
-  border-radius: 30px 0px 0px 50px;
-  /* height must be specified in the html */
+  border-radius: 30px 0px 0px 30px;
+  z-index: 0;
+}
+
+.diary-map, .diary-map * {
+  pointer-events: none !important;
+}
+
+/* when trip notes are enabled, the map has rounded right corners */
+.enhanced-trip-item .diary-map > div{
+  border-radius: 30px 0px 30px 0px;
 }
 
 .diary-map-shell {
-  float: left;
   width: 50%;
+  max-height: 100%;
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.enhanced-trip-item .diary-map-shell {
+  grid-template-rows: 4fr 1fr;
 }
 
 .diary-infos {
@@ -345,6 +417,11 @@ a.item-content {
   height: 50%;
 }
 
+/* to center the enketo/multilabel button */
+.diary-infos:nth-child(2) {
+  justify-content: center;
+}
+
 .diary-distance-time {
   font-style: normal;
   font-weight: bold;
@@ -353,18 +430,25 @@ a.item-content {
   text-align: center;
   margin-left: auto;
   margin-right: auto;
+  height: 40px;
 }
 
 .diary-modes-percents {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  translate: -50%;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 50px;
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
   margin: 5px 0;
+  padding: 1px 5px;
 }
 
 .diary-modes-percents-text {
-  color: #0088ce;
-}
-
-.diary-modes-percents-icon {
-  color: #0088ce;
+  color: var(--accent);
 }
 
 /* Purpose selection Override */
@@ -380,42 +464,42 @@ a.item-content {
 
 /* Date Picker Override */
 .ionic_datepicker_popup .today {
-  border: 1px solid #0088ce !important;
+  border: 1px solid var(--accent) !important;
 }
 
 .ionic_datepicker_popup .selected_date {
-  background-color: #0088ce !important;
+  background-color: var(--accent) !important;
 }
 
 .ionic_datepicker_popup .popup-head {
-  background-color: #0088ce !important;
+  background-color: var(--accent) !important;
 }
 
 .ionic_datepicker_popup .popup-body .selected_date_full {
-  background-color: #0088ce !important;
+  background-color: var(--accent) !important;
 }
 
 .ionic_datepicker_popup .popup-body .month_select, .ionic_datepicker_popup .popup-body .year_select {
-  border-bottom: 1px solid #0088ce !important;
+  border-bottom: 1px solid var(--accent) !important;
 }
 
 .ionic_datepicker_popup .popup-body .month_select:after, .ionic_datepicker_popup .popup-body .year_select:after {
-  color: #0088ce !important;
+  color: var(--accent) !important;
 }
 
 .ionic_datepicker_popup .popup-body .button-clear {
-  color: #0088ce !important;
+  color: var(--accent) !important;
 }
 
 .ionic_datepicker_popup .popup-buttons button {
-  background-color: #0088ce !important;
+  background-color: var(--accent) !important;
 }
 div.labelfilterlist {
   margin: 0 !important;
 }
 
 .button.labelfilter {
-  color: #0088ce;
+  color: var(--accent);
   border-radius: 0px;
   border-width: 0;
   box-shadow: 0 1px 2px rgba(0,0,0,0.16), 0 2px 2px rgba(0,0,0,0.23);
@@ -423,7 +507,7 @@ div.labelfilterlist {
 }
 
 .button.labelfilter.on {
-    background-color: #0088ce;
+    background-color: var(--accent);
     color: white;
 }
 

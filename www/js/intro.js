@@ -1,10 +1,16 @@
 'use strict';
 
+import angular from 'angular';
+import QrCode from './components/QrCode';
+
 angular.module('emission.intro', ['emission.splash.startprefs',
                                   'emission.survey.enketo.demographics',
                                   'emission.appstatus.permissioncheck',
                                   'emission.i18n.utils',
-                                  'ionic-toast'])
+                                  'emission.config.dynamic',
+                                  'emission.plugin.kvstore',
+                                  'ionic-toast',
+                                  QrCode.module])
 
 .config(function($stateProvider) {
   $stateProvider
@@ -23,25 +29,29 @@ angular.module('emission.intro', ['emission.splash.startprefs',
 
 .controller('IntroCtrl', function($scope, $rootScope, $state, $window,
     $ionicPlatform, $ionicSlideBoxDelegate,
-    $ionicPopup, $ionicHistory, ionicToast, $timeout, CommHelper, StartPrefs, SurveyLaunch, i18nUtils) {
+    $ionicPopup, $ionicHistory, ionicToast, $timeout, CommHelper, StartPrefs, KVStore, SurveyLaunch, DynamicConfig, i18nUtils) {
 
-  var allIntroFiles = Promise.all([
-    i18nUtils.geti18nFileName("templates/", "intro/summary", ".html"),
-    i18nUtils.geti18nFileName("templates/", "intro/consent", ".html"),
-    i18nUtils.geti18nFileName("templates/", "intro/sensor_explanation", ".html"),
-    i18nUtils.geti18nFileName("templates/", "intro/login", ".html"),
-    i18nUtils.geti18nFileName("templates/", "intro/survey", ".html")
-  ]);
-  allIntroFiles.then(function(allIntroFilePaths) {
-    $scope.$apply(function() {
-      console.log("intro files are "+allIntroFilePaths);
-      $scope.summaryFile = allIntroFilePaths[0];
-      $scope.consentFile = allIntroFilePaths[1];
-      $scope.explainFile = allIntroFilePaths[2];
-      $scope.loginFile = allIntroFilePaths[3];
-      $scope.surveyFile = allIntroFilePaths[4];
-    });
-  });
+  /*
+   * Move all the state that is currently in the controller body into the init
+   * function so that we can reload if we need to
+   */
+  $scope.init = function() {
+      var allIntroFiles = Promise.all([
+        i18nUtils.geti18nFileName("templates/", "intro/summary", ".html"),
+        i18nUtils.geti18nFileName("templates/", "intro/consent", ".html"),
+        i18nUtils.geti18nFileName("templates/", "intro/sensor_explanation", ".html"),
+        i18nUtils.geti18nFileName("templates/", "intro/survey", ".html")
+      ]);
+      allIntroFiles.then(function(allIntroFilePaths) {
+        $scope.$apply(function() {
+          console.log("intro files are "+allIntroFilePaths);
+          $scope.summaryFile = allIntroFilePaths[0];
+          $scope.consentFile = allIntroFilePaths[1];
+          $scope.explainFile = allIntroFilePaths[2];
+          $scope.surveyFile = allIntroFilePaths[3];
+        });
+      });
+  }
 
   $scope.getIntroBox = function() {
     return $ionicSlideBoxDelegate.$getByHandle('intro-box');
@@ -69,31 +79,24 @@ angular.module('emission.intro', ['emission.splash.startprefs',
 
   $scope.overallStatus = false;
 
-  // Adapted from https://stackoverflow.com/a/63363662/4040267
-  // made available under a CC BY-SA 4.0 license
-
-  $scope.generateRandomToken = function(length) {
-    var randomInts = window.crypto.getRandomValues(new Uint8Array(length * 2));
-    var randomChars = Array.from(randomInts).map((b) => String.fromCharCode(b));
-    var randomString = randomChars.join("");
-    var validRandomString = window.btoa(randomString).replace(/[+/]/g, "");
-    return validRandomString.substring(0, length);
-  }
-
+  /* If the user does not consent, we boot them back out to the join screen */
   $scope.disagree = function() {
-    $state.go('root.main.heatmap');
+    // reset the saved config, then trigger a hard refresh
+    DynamicConfig.resetConfigAndRefresh();
   };
 
   $scope.agree = function() {
-    $scope.randomToken = $scope.generateRandomToken(45);
-    window.Logger.log("Signing in with random token "+$scope.randomToken);
-
+    $scope.scannedToken = $scope.ui_config.joined.opcode;
     StartPrefs.markConsented().then(function(response) {
       $ionicHistory.clearHistory();
-      if ($state.is('root.intro')) {
-        $scope.next();
+      if ($scope.scannedToken) {
+        $scope.login($scope.scannedToken);
       } else {
-        StartPrefs.loadPreferredScreen();
+          if ($state.is('root.intro')) {
+            $scope.next();
+          } else {
+            StartPrefs.loadPreferredScreen();
+          }
       }
     });
   };
@@ -118,68 +121,10 @@ angular.module('emission.intro', ['emission.splash.startprefs',
       });
   }
 
-  $scope.loginNew = function() {
-    $scope.login($scope.randomToken);
-  };
-
-  $scope.typeExisting = function() {
-    $scope.data = {};
-    const tokenPopup = $ionicPopup.show({
-        template: '<input type="String" ng-model="data.existing_token">',
-        title: 'Enter the existing token that you have',
-        scope: $scope,
-        buttons: [
-          {
-            text: '<b>OK</b>',
-            type: 'button-positive',
-            onTap: function(e) {
-              if (!$scope.data.existing_token) {
-                //don't allow the user to close unless he enters a username
-
-                e.preventDefault();
-              } else {
-                return $scope.data.existing_token;
-              }
-            }
-          },{
-            text: '<b>Cancel</b>',
-            type: 'button-stable',
-            onTap: function(e) {
-              return null;
-            }
-          }
-        ]
-    });
-    tokenPopup.then(function(token) {
-        if (token != null) {
-            $scope.login(token);
-        }
-    }).catch(function(err) {
-        $scope.alertError(err);
-    });
-  };
-
-  $scope.scanExisting = function() {
-    const EXPECTED_PREFIX = "emission://login_token?token=";
-    cordova.plugins.barcodeScanner.scan(
-      function (result) {
-          if (result.format == "QR_CODE" &&
-              result.cancelled == false &&
-              result.text.startsWith(EXPECTED_PREFIX)) {
-              const extractedToken = result.text.substring(EXPECTED_PREFIX.length, result.length);
-              Logger.log("From QR code, extracted token "+extractedToken);
-              $scope.login(extractedToken);
-          } else {
-              $ionicPopup.alert({template: "invalid token format "+result.text});
-          }
-      },
-      function (error) {
-          $ionicPopup.alert({template: "Scanning failed: " + error});
-      });
-  };
-
   $scope.login = function(token) {
-    window.cordova.plugins.OPCodeAuth.setOPCode(token).then(function(opcode) {
+    const EXPECTED_METHOD = "prompted-auth";
+    const dbStorageObject = {"token": token};
+    KVStore.set(EXPECTED_METHOD, dbStorageObject).then(function(opcode) {
       // ionicToast.show(message, position, stick, time);
       // $scope.next();
       ionicToast.show(opcode, 'middle', false, 2500);
@@ -187,6 +132,8 @@ angular.module('emission.intro', ['emission.splash.startprefs',
         $scope.alertError("Invalid login "+opcode);
       } else {
         CommHelper.registerUser(function(successResult) {
+          $scope.currentToken = token;
+          $scope.qrToken = "emission://login_token?token=" + token;
           $scope.next();
         }, function(errorResult) {
           $scope.alertError('User registration error', errorResult);
@@ -195,7 +142,38 @@ angular.module('emission.intro', ['emission.splash.startprefs',
     }, function(error) {
         $scope.alertError('Sign in error', error);
     });
+
   };
+
+  $scope.shareQR = function() {
+    /*code adapted from demo of react-qr-code
+    selector below gets svg element out of angularized QRCode 
+    this will change upon later migration*/
+    const svg = document.querySelector("qr-code svg");
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      const pngFile = canvas.toDataURL("image/png");
+        
+      var prepopulateQRMessage = {}; 
+      prepopulateQRMessage.files = [pngFile];
+      prepopulateQRMessage.url = $scope.currentToken;
+        
+      window.plugins.socialsharing.shareWithOptions(prepopulateQRMessage, function(result) {
+        console.log("Share completed? " + result.completed); // On Android apps mostly return false even while it's true
+        console.log("Shared to app: " + result.app); // On Android result.app is currently empty. On iOS it's empty when sharing is cancelled (result.completed=false)
+      }, function(msg) {
+        console.log("Sharing failed with message: " + msg);
+      });
+    }
+    img.src =  `data:image/svg+xml;base64,${btoa(svgData)}`;
+  }
 
   // Called each time the slide changes
   $scope.slideChanged = function(index) {
@@ -228,5 +206,37 @@ angular.module('emission.intro', ['emission.splash.startprefs',
   $ionicPlatform.ready().then(function() {
     console.log("app is launched, currently NOP");
   });
-});
 
+  $ionicPlatform.ready().then(() => {
+      DynamicConfig.configReady().then((newConfig) => {
+        Logger.log("Resolved UI_CONFIG_READY promise in intro.js, filling in templates");
+        $scope.lang = i18next.resolvedLanguage;
+        $scope.ui_config = newConfig;
+
+        // backwards compat hack to fill in the raw_data_use for programs that don't have it
+        const default_raw_data_use = {
+            "en": `to monitor the ${newConfig.intro.program_or_study}, send personalized surveys or provide recommendations to participants`,
+            "es": `para monitorear el ${newConfig.intro.program_or_study}, enviar encuestas personalizadas o proporcionar recomendaciones a los participantes`
+        }
+        Object.entries(newConfig.intro.translated_text).forEach(([lang, val]) => {
+            val.raw_data_use = val.raw_data_use || default_raw_data_use[lang];
+        });
+        // TODO: we should be able to use i18n for this, right?
+        $scope.template_text = newConfig.intro.translated_text[$scope.lang];
+        if (!$scope.template_text) {
+            $scope.template_text = newConfig.intro.translated_text["en"]
+        }
+        // Backwards compat hack to fill in the `app_required` based on the
+        // old-style "program_or_study"
+        // remove this at the end of 2023 when all programs have been migrated over
+        if ($scope.ui_config.intro.app_required == undefined) {
+            $scope.ui_config.intro.app_required = $scope.ui_config?.intro.program_or_study == 'program';
+        }
+        $scope.ui_config.opcode = $scope.ui_config.opcode || {};
+        if ($scope.ui_config.opcode.autogen == undefined) {
+            $scope.ui_config.opcode.autogen = $scope.ui_config?.intro.program_or_study == 'study';
+        }
+        $scope.init();
+      });
+    });
+});

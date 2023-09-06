@@ -1,10 +1,16 @@
 'use strict';
 
+import angular from 'angular';
+import ProfileSettings from './ProfileSettings';
+
 angular.module('emission.main.control',['emission.services',
                                         'emission.i18n.utils',
                                         'emission.main.control.collection',
                                         'emission.main.control.sync',
+                                        'emission.splash.localnotify',
+                                        'emission.splash.notifscheduler',
                                         'ionic-datepicker',
+                                        'ionic-toast',
                                         'ionic-datepicker.provider',
                                         'emission.splash.startprefs',
                                         'emission.main.metrics.factory',
@@ -12,29 +18,29 @@ angular.module('emission.main.control',['emission.services',
                                         'emission.plugin.kvstore',
                                         'emission.survey.enketo.demographics',
                                         'emission.plugin.logger',
-                                        'monospaced.qrcode'])
+                                        'emission.config.dynamic',
+                                        ProfileSettings.module])
 
-.controller('ControlCtrl', function($scope, $window, $ionicScrollDelegate,
-               $ionicPlatform,
+.controller('ControlCtrl', function($scope, $window,
+               $ionicScrollDelegate, $ionicPlatform,
                $state, $ionicPopup, $ionicActionSheet, $ionicPopover,
                $ionicModal, $stateParams,
-               $rootScope, KVStore, ionicDatePicker,
+               $rootScope, KVStore, ionicDatePicker, ionicToast,
                StartPrefs, ControlHelper, EmailHelper, UploadHelper,
                ControlCollectionHelper, ControlSyncHelper,
-               CarbonDatasetHelper,
+               CarbonDatasetHelper, NotificationScheduler, LocalNotify,
                i18nUtils,
-               CalorieCal, ClientStats, CommHelper, Logger,
-               $translate) {
+               CalorieCal, ClientStats, CommHelper, Logger, DynamicConfig) {
 
     console.log("controller ControlCtrl called without params");
 
     var datepickerObject = {
-      todayLabel: $translate.instant('list-datepicker-today'),  //Optional
-      closeLabel: $translate.instant('list-datepicker-close'),  //Optional
-      setLabel: $translate.instant('list-datepicker-set'),  //Optional
+      todayLabel: i18next.t('list-datepicker-today'),  //Optional
+      closeLabel: i18next.t('list-datepicker-close'),  //Optional
+      setLabel: i18next.t('list-datepicker-set'),  //Optional
       monthsList: moment.monthsShort(),
       weeksList: moment.weekdaysMin(),
-      titleLabel: $translate.instant('general-settings.choose-date'),
+      titleLabel: i18next.t('general-settings.choose-date'),
       setButtonType : 'button-positive',  //Optional
       todayButtonType : 'button-stable',  //Optional
       closeButtonType : 'button-stable',  //Optional
@@ -67,17 +73,7 @@ angular.module('emission.main.control',['emission.services',
       ionicDatePicker.openDatePicker(datepickerObject);
     };
 
-    $scope.carbonDatasetString = $translate.instant('general-settings.carbon-dataset') + ": " + CarbonDatasetHelper.getCurrentCarbonDatasetCode();
-
-    $scope.uploadLog = function () {
-        UploadHelper.uploadFile("loggerDB")
-    };
-
-    $scope.emailLog = function () {
-        // Passing true, we want to send logs
-        EmailHelper.sendEmail("loggerDB")
-    };
-
+    //this function used in ProfileSettings to viewPrivacyPolicy
     $scope.viewPrivacyPolicy = function($event) {
         // button -> list element -> scroll
         // const targetEl = $event.currentTarget.parentElement.parentElement;
@@ -94,18 +90,22 @@ angular.module('emission.main.control',['emission.services',
         }
     }
 
-    $scope.viewQRCode = function($event) {
-        $scope.tokenURL = "emission://login_token?token="+$scope.settings.auth.opcode;
-        if ($scope.qrp) {
-            $scope.qrp.show($event);
-        } else {
-            $ionicPopover.fromTemplateUrl("templates/control/qrc.html", {scope: $scope}).then((q) => {
-                $scope.qrp = q;
-                $scope.qrp.show($event);
-            }).catch((err) => Logger.displayError("Error while displaying QR Code", err));
-        }
+    //this function used in ProfileSettings to send DummyNotification
+    $scope.dummyNotification = () => {
+        cordova.plugins.notification.local.addActions('dummy-actions', [
+            { id: 'action', title: 'Yes' },
+            { id: 'cancel', title: 'No' }
+        ]);
+        cordova.plugins.notification.local.schedule({
+            id: new Date().getTime(),
+            title: 'Dummy Title',
+            text: 'Dummy text',
+            actions: 'dummy-actions',
+            trigger: {at: new Date(new Date().getTime() + 5000)},
+        });
     }
 
+    //called in ProfileSettings on the AppStatus row
     $scope.fixAppStatus = function() {
         $scope.$broadcast("recomputeAppStatus");
         $scope.appStatusModal.show();
@@ -130,10 +130,10 @@ angular.module('emission.main.control',['emission.services',
                 age: userDataFromStorage.age,
                 height: height + (userDataFromStorage.heightUnit == 1? ' cm' : ' ft'),
                 weight: weight + (userDataFromStorage.weightUnit == 1? ' kg' : ' lb'),
-                gender: userDataFromStorage.gender == 1? $translate.instant('gender-male') : $translate.instant('gender-female')
+                gender: userDataFromStorage.gender == 1? i18next.t('gender-male') : i18next.t('gender-female')
             }
             for (var i in temp) {
-                $scope.userData.push({key: i, value: temp[i]});
+                $scope.userData.push({key: i, val: temp[i]}); //needs to be val for the data table!
             }
         }
         });
@@ -147,22 +147,34 @@ angular.module('emission.main.control',['emission.services',
         }
     }
     $ionicPlatform.ready().then(function() {
-        $scope.refreshScreen();
+        DynamicConfig.configReady().then(function(newConfig) {
+            $scope.ui_config = newConfig;
+            // backwards compat hack to fill in the raw_data_use for programs that don't have it
+            const default_raw_data_use = {
+                "en": `to monitor the ${newConfig.intro.program_or_study}, send personalized surveys or provide recommendations to participants`,
+                "es": `para monitorear el ${newConfig.intro.program_or_study}, enviar encuestas personalizadas o proporcionar recomendaciones a los participantes`
+            }
+            Object.entries(newConfig.intro.translated_text).forEach(([lang, val]) => {
+                val.raw_data_use = val.raw_data_use || default_raw_data_use[lang];
+            });
+            // TODO: we should be able to use $translate for this, right?
+            $scope.template_text = newConfig.intro.translated_text[$scope.lang];
+            if (!$scope.template_text) {
+                $scope.template_text = newConfig.intro.translated_text["en"]
+            }
+            // Backwards compat hack to fill in the `app_required` based on the
+            // old-style "program_or_study"
+            // remove this at the end of 2023 when all programs have been migrated over
+            if ($scope.ui_config.intro.app_required == undefined) {
+                $scope.ui_config.intro.app_required = $scope.ui_config?.intro.program_or_study == 'program';
+            }
+            $scope.ui_config.opcode = $scope.ui_config.opcode || {};
+            if ($scope.ui_config.opcode.autogen == undefined) {
+                $scope.ui_config.opcode.autogen = $scope.ui_config?.intro.program_or_study == 'study';
+            }
+            $scope.refreshScreen();
+        });
     });
-    $scope.getLowAccuracy = function() {
-        //  return true: toggle on; return false: toggle off.
-        var isMediumAccuracy = ControlCollectionHelper.isMediumAccuracy();
-        if (!angular.isDefined(isMediumAccuracy)) {
-            // config not loaded when loading ui, set default as false
-            // TODO: Read the value if it is not defined.
-            // Otherwise, don't we have a race with reading?
-            // we don't really $apply on this field...
-            return false;
-        } else {
-            return isMediumAccuracy;
-        }
-    }
-    $scope.toggleLowAccuracy = ControlCollectionHelper.toggleLowAccuracy;
 
     $scope.getConnectURL = function() {
         ControlHelper.getSettings().then(function(response) {
@@ -172,14 +184,6 @@ angular.module('emission.main.control',['emission.services',
             });
         }, function(error) {
             Logger.displayError("While getting connect url", error);
-        });
-    };
-
-    $scope.getCollectionSettings = function() {
-        ControlCollectionHelper.getCollectionSettings().then(function(showConfig) {
-            $scope.$apply(function() {
-                $scope.settings.collect.show_config = showConfig;
-            })
         });
     };
 
@@ -205,20 +209,20 @@ angular.module('emission.main.control',['emission.services',
             Logger.displayError("while getting opcode, ",error);
         });
     };
+    //in ProfileSettings in DevZone
     $scope.showLog = function() {
         $state.go("root.main.log");
     }
+    //inProfileSettings in DevZone
     $scope.showSensed = function() {
         $state.go("root.main.sensed");
     }
-    $scope.showMap = function() {
-        $state.go("root.main.map");
-    }
     $scope.getState = function() {
         return ControlCollectionHelper.getState().then(function(response) {
-            $scope.$apply(function() {
-                $scope.settings.collect.state = response;
-            });
+            /* collect state is now stored in ProfileSettings' collectSettings */
+            // $scope.$apply(function() {
+            //     $scope.settings.collect.state = response;
+            // });
             return response;
         }, function(error) {
             Logger.displayError("while getting current state", error);
@@ -241,25 +245,7 @@ angular.module('emission.main.control',['emission.services',
         });
     }
 
-    $scope.nukeUserCache = function() {
-        var nukeChoiceActions = [{text: $translate.instant('general-settings.nuke-ui-state-only'),
-                                  action: KVStore.clearOnlyLocal},
-                                 {text: $translate.instant('general-settings.nuke-native-cache-only'),
-                                  action: KVStore.clearOnlyNative},
-                                 {text: $translate.instant('general-settings.nuke-everything'),
-                                  action: KVStore.clearAll}];
-
-        $ionicActionSheet.show({
-            titleText: $translate.instant('general-settings.clear-data'),
-            cancelText: $translate.instant('general-settings.cancel'),
-            buttons: nukeChoiceActions,
-            buttonClicked: function(index, button) {
-                button.action();
-                return true;
-            }
-        });
-    }
-
+    //in ProfileSettings in DevZone
     $scope.invalidateCache = function() {
         window.cordova.plugins.BEMUserCache.invalidateAllCache().then(function(result) {
             $scope.$apply(function() {
@@ -277,6 +263,10 @@ angular.module('emission.main.control',['emission.services',
             if ($stateParams.launchAppStatusModal == true) {
                 $scope.$broadcast("recomputeAppStatus");
                 $scope.appStatusModal.show();
+                $stateParams.launchAppStatusModal = false;
+            }
+            if ($stateParams.openTimeOfDayPicker) {
+                $('input[name=timeOfDay]').focus();
             }
         });
     })
@@ -290,46 +280,40 @@ angular.module('emission.main.control',['emission.services',
         $scope.refreshScreen();
     });
 
+    //in ProfileSettings in DevZone
     $scope.refreshScreen = function() {
         console.log("Refreshing screen");
         $scope.settings = {};
-        $scope.settings.collect = {};
         $scope.settings.sync = {};
         $scope.settings.auth = {};
         $scope.settings.connect = {};
         $scope.settings.clientAppVer = ClientStats.getAppVersion();
         $scope.getConnectURL();
-        $scope.getCollectionSettings();
         $scope.getSyncSettings();
         $scope.getOPCode();
-        $scope.getState().then($scope.isTrackingOn).then(function(isTracking) {
-            $scope.$apply(function() {
-                console.log("Setting settings.collect.trackingOn = "+isTracking);
-                $scope.settings.collect.trackingOn = isTracking;
-            });
-        });
-        KVStore.get("OP_GEOFENCE_CFG").then(function(storedCfg) {
-            $scope.$apply(function() {
-                if (storedCfg == null) {
-                    console.log("Setting settings.collect.experimentalGeofenceOn = false");
-                    $scope.settings.collect.experimentalGeofenceOn = false;
-                } else {
-                    console.log("Setting settings.collect.experimentalGeofenceOn = true");
-                    $scope.settings.collect.experimentalGeofenceOn = true;
-                }
-            });
-        });
         $scope.getUserData();
     };
 
-    $scope.returnToIntro = function() {
-      var testReconsent = false
-      if (testReconsent) {
-        $rootScope.req_consent.approval_date = Math.random();
-        StartPrefs.loadPreferredScreen();
-      } else {
-        $state.go("root.intro");
-      }
+    //this feature has been eliminated (as of right now)
+    // $scope.copyToClipboard = (textToCopy) => {
+    //     navigator.clipboard.writeText(textToCopy).then(() => {
+    //         ionicToast.show('{Copied to clipboard!}', 'bottom', false, 2000);
+    //     });
+    // }  
+
+    //used in ProfileSettings at the profile/logout/opcode row
+    $scope.logOut = function() {
+        $ionicPopup.confirm({
+            title: i18next.t('general-settings.are-you-sure'),
+            template: i18next.t('general-settings.log-out-warning'),
+            cancelText: i18next.t('general-settings.cancel'),
+            okText: i18next.t('general-settings.confirm')
+        }).then(function(res) {
+            if (!res) return; // user cancelled
+            
+            // reset the saved config, then trigger a hard refresh
+            DynamicConfig.resetConfigAndRefresh();
+        });
     };
 
     var getStartTransitionKey = function() {
@@ -422,6 +406,7 @@ angular.module('emission.main.control',['emission.services',
         })
     }
 
+    //in ProfileSettings in DevZone
     $scope.endForceSync = function() {
         /* First, quickly start and end the trip. Let's listen to the promise
          * result for start so that we ensure ordering */
@@ -434,10 +419,6 @@ angular.module('emission.main.control',['emission.services',
                 })
         }).then($scope.forceSync);
     }
-
-    $scope.forceState = ControlCollectionHelper.forceState;
-    $scope.editCollectionConfig = ControlCollectionHelper.editConfig;
-    $scope.editSyncConfig = ControlSyncHelper.editConfig;
 
     $scope.isAndroid = function() {
         return ionic.Platform.isAndroid();
@@ -452,34 +433,14 @@ angular.module('emission.main.control',['emission.services',
     }).then(function(popover) {
         $scope.syncSettingsPopup = popover;
     });
-    $scope.isTrackingOn = function() {
-        return $ionicPlatform.ready().then(function() {
-            if($scope.isAndroid()){
-                return $scope.settings.collect.state != "local.state.tracking_stopped";
-            } else if ($scope.isIOS()) {
-                return $scope.settings.collect.state != "STATE_TRACKING_STOPPED";
-            }
-        });
-    };
-    $scope.userStartStopTracking = function() {
-        if ($scope.settings.collect.trackingOn){
-            return ControlCollectionHelper.forceTransition('STOP_TRACKING');
-        } else {
-            return ControlCollectionHelper.forceTransition('START_TRACKING');
-        }
-    }
 
-    $scope.getExpandButtonClass = function() {
-        return ($scope.expanded)? "icon ion-ios-arrow-up" : "icon ion-ios-arrow-down";
-    }
-    $scope.getUserDataExpandButtonClass = function() {
-        return ($scope.dataExpanded)? "icon ion-ios-arrow-up" : "icon ion-ios-arrow-down";
-    }
+    //in ProfileSettings in UserData
     $scope.eraseUserData = function() {
         CalorieCal.delete().then(function() {
-            $ionicPopup.alert({template: $translate.instant('general-settings.user-data-erased')});
+            $ionicPopup.alert({template: i18next.t('general-settings.user-data-erased')});
         });
     }
+    //in ProfileSettings in DevZone -- part of force/edit state
     $scope.parseState = function(state) {
         if (state) {
             if($scope.isAndroid()){
@@ -489,53 +450,29 @@ angular.module('emission.main.control',['emission.services',
             }
         }
     }
-    $scope.changeCarbonDataset = function() {
-        $ionicActionSheet.show({
-          buttons: CarbonDatasetHelper.getCarbonDatasetOptions(),
-          titleText: $translate.instant('general-settings.choose-dataset'),
-          cancelText: $translate.instant('general-settings.cancel'),
-          buttonClicked: function(index, button) {
-            console.log("changeCarbonDataset(): chose locale " + button.value);
-            CarbonDatasetHelper.saveCurrentCarbonDatasetLocale(button.value);
-            $scope.carbonDatasetString = $translate.instant('general-settings.carbon-dataset') + ": " + CarbonDatasetHelper.getCurrentCarbonDatasetCode();
-            return true;
-          }
-        });
-    };
-    $scope.expandDeveloperZone = function() {
-        if ($scope.collectionExpanded()) {
-            $scope.expanded = false;
-            $ionicScrollDelegate.resize();
-            $ionicScrollDelegate.scrollTo(0, 0, true);
-
-        } else {
-            $scope.expanded = true;
-            $ionicScrollDelegate.resize();
-            $ionicScrollDelegate.scrollTo(0, 1000, true);
-        }
-    }
-    $scope.toggleUserData = function() {
-        if ($scope.dataExpanded) {
-            $scope.dataExpanded = false;
-        } else {
-            $scope.dataExpanded = true;
-        }
-    }
-    $scope.collectionExpanded = function() {
-        return $scope.expanded;
-    }
-    $scope.userDataExpanded = function() {
-        return $scope.dataExpanded && $scope.userDataSaved();
-    }
+    // //in ProfileSettings change carbon set
+    // $scope.changeCarbonDataset = function() {
+    //     $ionicActionSheet.show({
+    //       buttons: CarbonDatasetHelper.getCarbonDatasetOptions(),
+    //       titleText: i18next.t('general-settings.choose-dataset'),
+    //       cancelText: i18next.t('general-settings.cancel'),
+    //       buttonClicked: function(index, button) {
+    //         console.log("changeCarbonDataset(): chose locale " + button.value);
+    //         CarbonDatasetHelper.saveCurrentCarbonDatasetLocale(button.value);
+    //         $scope.carbonDatasetString = i18next.t('general-settings.carbon-dataset') + ": " + CarbonDatasetHelper.getCurrentCarbonDatasetCode();
+    //         return true;
+    //       }
+    //     });
+    // };
 
     var handleNoConsent = function(resultDoc) {
-        $ionicPopup.confirm({template: $translate.instant('general-settings.consent-not-found')})
+        $ionicPopup.confirm({template: i18next.t('general-settings.consent-not-found')})
         .then(function(res){
             if (res) {
                $state.go("root.reconsent");
             } else {
                $ionicPopup.alert({
-                template: $translate.instant('general-settings.no-consent-message')});
+                template: i18next.t('general-settings.no-consent-message')});
             }
         });
     }
@@ -543,19 +480,20 @@ angular.module('emission.main.control',['emission.services',
     var handleConsent = function(resultDoc) {
         $scope.consentDoc = resultDoc;
         $ionicPopup.confirm({
-            template: $translate.instant('general-settings.consented-to',{protocol_id: $scope.consentDoc.protocol_id,approval_date: $scope.consentDoc.approval_date}),
+            template: i18next.t('general-settings.consented-to',{protocol_id: $scope.consentDoc.protocol_id,approval_date: $scope.consentDoc.approval_date}),
             scope: $scope,
-            title: $translate.instant('general-settings.consent-found'),
+            title: i18next.t('general-settings.consent-found'),
             buttons: [
             // {text: "<a href='https://e-mission.eecs.berkeley.edu/consent'>View</a>",
             //  type: 'button-calm'},
-            {text: "<b>"+ $translate.instant('general-settings.consented-ok') +"</b>",
+            {text: "<b>"+ i18next.t('general-settings.consented-ok') +"</b>",
              type: 'button-positive'} ]
         }).finally(function(res) {
             $scope.consentDoc = null;
         });
     }
 
+    //in ProfileSettings in DevZone (above two functions are helpers)
     $scope.checkConsent = function() {
         StartPrefs.getConsentDocument().then(function(resultDoc){
             if (resultDoc == null) {
@@ -569,9 +507,9 @@ angular.module('emission.main.control',['emission.services',
     }
 
     var prepopulateMessage = {
-        message: $translate.instant('general-settings.share-message'), // not supported on some apps (Facebook, Instagram)
-        subject: $translate.instant('general-settings.share-subject'), // fi. for email
-        url: $translate.instant('general-settings.share-url')
+        message: i18next.t('general-settings.share-message'), // not supported on some apps (Facebook, Instagram)
+        subject: i18next.t('general-settings.share-subject'), // fi. for email
+        url: i18next.t('general-settings.share-url')
     }
 
     $scope.share = function() {
@@ -583,28 +521,34 @@ angular.module('emission.main.control',['emission.services',
         });
     }
 
-    var prepopulateQRMessage = {
-        message: $translate.instant('general-settings.qrcode-share-message'), // not supported on some apps (Facebook, Instagram)
-        subject: $translate.instant('general-settings.qrcode-share-subject') // fi. for email
-    }
-
     $scope.shareQR = function() {
-        //const c = $(".qrcode"); // selects the canvas element containing the QR code
-        //const cbase64 = c[0].toDataURL(); // converts the canvas element into base64 data
-        //prepopulateQRMessage.files = [cbase64]; // adds the base64 data into our share message
+        /*code adapted from demo of react-qr-code
+        selector below gets svg element out of angularized QRCode 
+        this will change upon later migration*/
+        const svg = document.querySelector("qr-code svg");
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const img = new Image();
 
-        const c = document.getElementsByClassName('qrcode-link');
-        const cbase64 = c[0].getAttribute('href');
-        prepopulateQRMessage.files = [cbase64];
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const pngFile = canvas.toDataURL("image/png");
 
-        prepopulateQRMessage.url = $scope.settings.auth.opcode;
-
-        window.plugins.socialsharing.shareWithOptions(prepopulateQRMessage, function(result) {
-            console.log("Share completed? " + result.completed); // On Android apps mostly return false even while it's true
-            console.log("Shared to app: " + result.app); // On Android result.app is currently empty. On iOS it's empty when sharing is cancelled (result.completed=false)
-        }, function(msg) {
-            console.log("Sharing failed with message: " + msg);
-        });
+            var prepopulateQRMessage = {}; 
+            prepopulateQRMessage.files = [pngFile];
+            prepopulateQRMessage.url = $scope.settings.auth.opcode;
+    
+            window.plugins.socialsharing.shareWithOptions(prepopulateQRMessage, function(result) {
+                console.log("Share completed? " + result.completed); // On Android apps mostly return false even while it's true
+                console.log("Shared to app: " + result.app); // On Android result.app is currently empty. On iOS it's empty when sharing is cancelled (result.completed=false)
+            }, function(msg) {
+                console.log("Sharing failed with message: " + msg);
+            });
+        }
+        img.src =  `data:image/svg+xml;base64,${btoa(svgData)}`;
     }
 
 });
