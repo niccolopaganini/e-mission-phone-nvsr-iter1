@@ -89,7 +89,7 @@ angular.module('emission.services.email', ['emission.plugin.logger'])
                   Logger.log("email app closed while sending, "+JSON.stringify(email)+" not sure if we should do anything");
                   // alert(i18next.t('email-service.no-email-address-configured') + err);
                   return;
-                });
+                  });
             });
         };
 });
