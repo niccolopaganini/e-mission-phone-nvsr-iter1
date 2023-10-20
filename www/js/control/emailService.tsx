@@ -1,73 +1,69 @@
 import React from 'react';
 
-import LoggerPlugin from 'emission.plugin.logger';
+interface EmailHelperProps {
+  window: Window;
+  fetch: typeof fetch;
+  Logger: LoggerPlugin;
+}
 
-    .service('EmailHelper', function (window, fetch, Logger) {
+const EmailHelper: React.FC<EmailHelperProps> = ({ window, fetch, Logger }) => {
+  const getEmailConfig = async (): Promise<string[]> => {
+    Logger.log(Logger.LEVEL_INFO, "About to get email config");
+    await new Promise((resolve) => setTimeout(resolve, 1000)); 
+    const emailConfig = "k.shankari@nrel.gov"; 
+    Logger.log(Logger.LEVEL_DEBUG, "emailConfigString = " + emailConfig);
+    return [emailConfig];
+  };
 
-        const getEmailConfig = function (): Promise<string[]> {
-            return new Promise(function (resolve, reject) {
-              window.Logger.log(window.Logger.LEVEL_INFO, "About to get email config");
-              setTimeout(() => {
-                const emailConfig = "k.shankari@nrel.gov"; // Simulated email address
-          
-                window.Logger.log(window.Logger.LEVEL_DEBUG, "emailConfigString = " + emailConfig);
-                resolve([emailConfig]);
-              }, 1000); // Simulate an asynchronous operation
-            });
-          };
-          
+  const hasAccount = async (): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      window['cordova'].plugins.email.hasAccount((hasAct: boolean) => {
+        resolve(hasAct);
+      });
+    });
+  };
 
-          const hasAccount = (): Promise<boolean> => {
-            return new Promise<boolean>((resolve, reject) => {
-              window['cordova'].plugins.email.hasAccount((hasAct: boolean) => {
-                resolve(hasAct);
-              });
-            });
-          };
+  const sendEmail = (database: string) => {
+    Promise.all([getEmailConfig(), hasAccount()]).then(([address, hasAct]) => {
+      let parentDir = "unknown";
 
-          
-        this.sendEmail = function (database) {
-            Promise.all([getEmailConfig(), hasAccount()]).then(function([address, hasAct]) {
-                var parentDir = "unknown";
+      if (ionic.Platform.isIOS() && !hasAct) {
+        alert(i18next.t('email-service.email-account-not-configured'));
+        return;
+      }
 
-                if (ionic.Platform.isIOS() && !hasAct) {
-                    alert(i18next.t('email-service.email-account-not-configured'));
-                    return;
-                }
+      if (ionic.Platform.isAndroid()) {
+        parentDir = "app://databases";
+      }
+      if (ionic.Platform.isIOS()) {
+        alert(i18next.t('email-service.email-account-mail-app'));
+        parentDir = cordova.file.dataDirectory + "../LocalDatabase";
+      }
 
-                if (ionic.Platform.isAndroid()) {
-                    parentDir = "app://databases";
-                }
-                if (ionic.Platform.isIOS()) {
-                    alert(i18next.t('email-service.email-account-mail-app'));
-                    parentDir = cordova.file.dataDirectory + "../LocalDatabase";
-                }
+      if (parentDir === "unknown") {
+        alert(`parentDir unexpectedly = ${parentDir}!`);
+      }
 
-                if (parentDir === "unknown") {
-                    alert(`parentDir unexpectedly = ${parentDir}!`);
-                  }
+      Logger.log(Logger.LEVEL_INFO, "Going to email " + database);
+      parentDir = parentDir + "/" + database;
 
-                window.Logger.log(window.Logger.LEVEL_INFO, "Going to email " + database);
-                parentDir = parentDir + "/" + database;
-                /*
-                window.Logger.log(window.Logger.LEVEL_INFO,
-                    "Going to export logs to "+parentDir);
-                 */
-                alert(i18next.t('email-service.going-to-email', { parentDir: parentDir }));
-                var email = {
-                    to: address,
-                    attachments: [
-                        parentDir
-                    ],
-                    subject: i18next.t('email-service.email-log.subject-logs'),
-                    body: i18next.t('email-service.email-log.body-please-fill-in-what-is-wrong')
-                }
+      alert(i18next.t('email-service.going-to-email', { parentDir: parentDir }));
 
-                window['cordova']plugins.email.open(email, function () {
-                  Logger.log("email app closed while sending, "+JSON.stringify(email)+" not sure if we should do anything");
-                  // alert(i18next.t('email-service.no-email-address-configured') + err);
-                  return;
-                  });
-            });
-        };
-});
+      const email = {
+        to: address,
+        attachments: [parentDir],
+        subject: i18next.t('email-service.email-log.subject-logs'),
+        body: i18next.t('email-service.email-log.body-please-fill-in-what-is-wrong'),
+      };
+
+      window['cordova'].plugins.email.open(email, () => {
+        Logger.log("email app closed while sending, " + JSON.stringify(email) + " not sure if we should do anything");
+        return;
+      });
+    });
+  };
+
+  return null;
+};
+
+export default EmailHelper;
