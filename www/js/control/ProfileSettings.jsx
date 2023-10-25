@@ -24,6 +24,7 @@ import { AppContext } from "../App";
 import { shareQR } from "../components/QrCode";
 import { storageClear } from "../plugin/storage";
 import { getAppVersion } from "../plugin/clientStats";
+import React, { useState } from 'react';
 
 //any pure functions can go outside
 const ProfileSettings = () => {
@@ -36,7 +37,6 @@ const ProfileSettings = () => {
     //angular services needed
     const CarbonDatasetHelper = getAngularService('CarbonDatasetHelper');
     const UploadHelper = getAngularService('UploadHelper');
-    const EmailHelper = getAngularService('EmailHelper');
     const NotificationScheduler = getAngularService('NotificationScheduler');
     const ControlHelper = getAngularService('ControlHelper');
     const StartPrefs = getAngularService('StartPrefs');
@@ -57,6 +57,7 @@ const ProfileSettings = () => {
     const [consentVis, setConsentVis] = useState(false);
     const [dateDumpVis, setDateDumpVis] = useState(false);
     const [privacyVis, setPrivacyVis] = useState(false);
+    const [emailVis, setEmailVis] = useState(false); 
     const [showingSensed, setShowingSensed] = useState(false);
     const [showingLog, setShowingLog] = useState(false);
     const [editSync, setEditSync] = useState(false);
@@ -72,6 +73,7 @@ const ProfileSettings = () => {
     const [uiConfig, setUiConfig] = useState({});
     const [consentDoc, setConsentDoc] = useState({});
     const [dumpDate, setDumpDate] = useState(new Date());
+    const [emailReason, setEmailReason] = useState("");
     const appVersion = useRef();
 
     let carbonDatasetString = t('general-settings.carbon-dataset') + ": " + CarbonDatasetHelper.getCurrentCarbonDatasetCode();
@@ -224,7 +226,8 @@ const ProfileSettings = () => {
 
     const emailLog = function () {
         // Passing true, we want to send logs
-        EmailHelper.sendEmail("loggerDB")
+        sendEmail("loggerDB");
+        setEmailVis(false);
     };
 
     async function  updatePrefReminderTime(storeNewVal=true, newTime){
