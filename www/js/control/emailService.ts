@@ -1,71 +1,83 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import i18next from "i18next";
+import { logInfo, logDebug, displayError } from "../plugin/logger";
+import 'cordova-plugin-email-composer';
 
-// Simulate Ionic and i18next
-const ionic = {
-  Platform: {
-    isIOS: () => true,
-    isAndroid: () => true,
+function EmailHelper() {
+  const [emailConfig, setEmailConfig] = useState<string | null>(null);
+
+  const getEmailConfig = async () => {
+    try {
+      logInfo("About to get email config");
+      let url = "json/emailConfig.json";
+      let response = await fetch(url);
+      let emailConfigData = await response.json();
+      logDebug("emailConfigString = " + JSON.stringify(emailConfigData.address));
+      setEmailConfig(emailConfigData.address);
+    } catch (err) {
+      try {
+        let url = "json/emailConfig.json.sample";
+        let response = await fetch(url);
+        let emailConfigData = await response.json();
+        logDebug("default emailConfigString = " + JSON.stringify(emailConfigData.address));
+        setEmailConfig(emailConfigData.address);
+      } catch (err) {
+        displayError(err, "Error while reading default email config");
+      }
+    }
   };
 
-const i18next = {
-  t: (text: string) => text,
-};
-
-interface EmailHelperProps {
-  database: string;
-}
-
-const getEmailConfig = (): Promise<string[]> => {
-  return new Promise<string[]>(function (resolve, reject) {
-    window.Logger.log(window.Logger.LEVEL_INFO, "About to get email config");
-    setTimeout(() => {
-      const emailConfig = "k.shankari@nrel.gov"; // Simulated email address
-      window.Logger.log(window.Logger.LEVEL_DEBUG, "emailConfigString = " + emailConfig);
-      resolve([emailConfig]);
+  const hasAccount = () => {
+    return new Promise<boolean>((resolve, reject) => {
+      window['cordova'].plugins['email'].hasAccount(hasAct => {
+        resolve(hasAct);
+      });
     });
-  });
-};
-
-const sendEmail = ({ database }: EmailHelperProps) => {
-  let parentDir = "unknown";
-
-  if (ionic.Platform.isAndroid()) {
-    parentDir = "app://databases";
-  }
-  if (ionic.Platform.isIOS()) {
-    alert(i18next.t('email-service.email-account-mail-app'));
-    parentDir = cordova.file.dataDirectory + "../LocalDatabase";
-  }
-
-  if (parentDir === "unknown") {
-    alert(`parentDir unexpectedly = ${parentDir}!`);
-  }
-
-  window.Logger.log(window.Logger.LEVEL_INFO, "Going to email " + database);
-  parentDir = parentDir + "/" + database;
-
-  alert(i18next.t('email-service.going-to-email', { parentDir: parentDir }));
-
-  const email = {
-    to: "k.shankari@nrel.gov", // Simulated email address
-    attachments: [parentDir],
-    subject: i18next.t('email-service.email-log.subject-logs'),
-    body: i18next.t('email-service.email-log.body-please-fill-in-what-is-wrong'),
   };
 
-  (window as any).cordova.plugins.email.open(email, function () {
-    window.Logger.log("email app closed while sending, " + JSON.stringify(email) + " not sure if we should do anything");
-    // alert(i18next.t('email-service.no-email-address-configured') + err);
-    return;
-  });
-};
+  const sendEmail = (database: string) => {
+    Promise.all([getEmailConfig(), hasAccount()]).then(([address, hasAct]) => {
+      let parentDir = "unknown";
 
-const EmailHelper: React.FC<EmailHelperProps> = ({ database }) => {
+      if (window['ionic'].Platform.isIOS() && !hasAct) {
+        alert(i18next.t('email-service.email-account-not-configured'));
+        return;
+      }
+
+      if (window['ionic'].Platform.isAndroid()) {
+        parentDir = "app://databases";
+      }
+
+      if (window['ionic'].Platform.isIOS()) {
+        alert(i18next.t('email-service.email-account-mail-app'));
+        console.log(window['cordova'].file.dataDirectory);
+        parentDir = window['cordova'].file.dataDirectory + "../LocalDatabase";
+      }
+
+      if (parentDir === 'unknown') {
+        alert('parentDir unexpectedly = ' + parentDir + '!');
+      }
+
+      logInfo('Going to email ' + database);
+      parentDir = parentDir + '/' + database;
+
+      alert(i18next.t('email-service.going-to-email', { parentDir: parentDir }));
+
+      let emailData = {
+        to: emailConfig,
+        attachments: [parentDir],
+        subject: i18next.t('email-service.email-log.subject-logs'),
+        body: i18next.t('email-service.email-log.body-please-fill-in-what-is-wrong')
+      };
+
+      window['cordova'].plugins['email'].open(emailData, () => {
+        logInfo('Email app closed while sending, ' + JSON.stringify(emailData) + ' not sure if we should do anything');
+      });
+    });
+  };
+
+  // for fetching email config
   useEffect(() => {
-    sendEmail({ database });
-  }, [database]);
-
-  return <div>Send Email</div>;
-};
-
-export default EmailHelper;
+    getEmailConfig();
+  }, []);
+}
