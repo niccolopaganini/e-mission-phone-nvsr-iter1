@@ -24,7 +24,6 @@ import { AppContext } from "../App";
 import { shareQR } from "../components/QrCode";
 import { storageClear } from "../plugin/storage";
 import { getAppVersion } from "../plugin/clientStats";
-import React, { useState } from 'react';
 
 //any pure functions can go outside
 const ProfileSettings = () => {
