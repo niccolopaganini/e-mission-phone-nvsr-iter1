@@ -30,7 +30,7 @@ function EmailHelper() {
 
   const hasAccount = () => {
     return new Promise<boolean>((resolve, reject) => {
-      window['cordova'].plugins.email.hasAccount(hasAct => {
+      window['cordova'].plugins['email'].hasAccount(hasAct => {
         resolve(hasAct);
       });
     });
@@ -51,6 +51,7 @@ function EmailHelper() {
 
       if (window['ionic'].Platform.isIOS()) {
         alert(i18next.t('email-service.email-account-mail-app'));
+        console.log(window['cordova'].file.dataDirectory);
         parentDir = window['cordova'].file.dataDirectory + "../LocalDatabase";
       }
 
@@ -70,7 +71,7 @@ function EmailHelper() {
         body: i18next.t('email-service.email-log.body-please-fill-in-what-is-wrong')
       };
 
-      window['cordova'].plugins.email.open(emailData, () => {
+      window['cordova'].plugins['email'].open(emailData, () => {
         logInfo('Email app closed while sending, ' + JSON.stringify(emailData) + ' not sure if we should do anything');
       });
     });
