@@ -36,7 +36,6 @@ import { initByUser } from './config/dynamicConfig';
 angular.module('emission', ['ionic', 'jm.i18next',
     'emission.controllers','emission.services', 'emission.plugin.logger',
     'emission.splash.customURLScheme', 'emission.splash.referral',
-    'emission.services.email',
     'emission.main', 'pascalprecht.translate', 'LocalStorageModule'])
 
 .run(function($ionicPlatform, $rootScope, $http, Logger,
